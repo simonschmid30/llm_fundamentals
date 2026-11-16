@@ -3,6 +3,7 @@
 import ast
 import contextlib
 import copy
+import hashlib
 import io
 import json
 import math
@@ -13,6 +14,7 @@ import unittest
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOK = ROOT / "06_Train_Language_Model/train_language_model.ipynb"
@@ -84,6 +86,45 @@ class LanguageModelTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             extract(document.replace("THE GOLDEN BIRD", "WRONG TITLE"))
+
+    def test_book_loading_uses_local_text_without_network(self):
+        """Read local books and report missing input without downloading."""
+        notebook = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
+        source = next(
+            "".join(cell["source"])
+            for cell in notebook["cells"]
+            if cell["id"] == "train-lm-05"
+        )
+        titles = ["THE GOLDEN BIRD"] + [f"TALE {i}" for i in range(1, 10)]
+        document = (
+            "*** START OF THE PROJECT GUTENBERG EBOOK TEST ***\n"
+            + "\n".join(title + "\nA complete tale." for title in titles)
+            + "\n*** END OF THE PROJECT GUTENBERG EBOOK TEST ***\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory)
+            book = data / "grimm_gutenberg_2591.txt"
+            book.write_text(document, encoding="utf-8")
+            original = book.read_bytes()
+            with (
+                patch(
+                    "socket.socket.connect",
+                    side_effect=AssertionError("Book loading must stay local"),
+                ) as connect,
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                namespace = {"DATA": data, "re": re, "hashlib": hashlib}
+                exec(source, namespace)  # pylint: disable=exec-used
+                self.assertEqual(len(namespace["training_titles"]), 9)
+                self.assertEqual(namespace["validation_titles"], [titles[-1]])
+                self.assertEqual(book.read_bytes(), original)
+                book.unlink()
+                with self.assertRaisesRegex(
+                    FileNotFoundError, "Restore data/book_model"
+                ):
+                    exec(source, namespace)  # pylint: disable=exec-used
+                self.assertFalse(book.exists())
+                connect.assert_not_called()
 
     def test_future_tokens_cannot_change_prefix_predictions(self):
         """Prevent attention from leaking target tokens into predictions."""

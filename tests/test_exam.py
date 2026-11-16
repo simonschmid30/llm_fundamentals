@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-EXAM = ROOT / "07_Example_Exam_Questions"
+EXAM = ROOT / "08_Example_Exam_Questions"
 
 
 def load_script(name, dependencies=None, apparent_path=None):
@@ -66,7 +66,7 @@ class ExamTests(unittest.TestCase):
     def test_changed_csvs_change_the_reported_metrics(self):
         """Alter CSV values and check costs, agreement and attack counts."""
         with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory) / "07_Example_Exam_Questions"
+            target = Path(directory) / "08_Example_Exam_Questions"
             target.mkdir()
             for name in ("reviews.csv", "llm_runs.csv", "model_comparison.csv"):
                 (target / name).write_bytes((EXAM / name).read_bytes())
@@ -161,8 +161,17 @@ class ExamTests(unittest.TestCase):
             expected_cells = [
                 (c["id"], c["source"], c["metadata"]) for c in first["cells"]
             ]
+            # Execution timestamps vary when the saved notebook is run.
             saved_cells = [
-                (c["id"], "".join(c["source"]), c["metadata"])
+                (
+                    c["id"],
+                    "".join(c["source"]),
+                    {
+                        key: value
+                        for key, value in c["metadata"].items()
+                        if key != "execution"
+                    },
+                )
                 for c in saved["cells"]
             ]
             self.assertEqual(expected_cells, saved_cells)

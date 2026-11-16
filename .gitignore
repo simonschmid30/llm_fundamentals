@@ -17,8 +17,9 @@ data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
-# Downloaded book and locally trained model from notebook 06
-data/book_model/
+# Locally trained models; keep the supplied book text in the repository
+data/book_model/*
+!data/book_model/grimm_gutenberg_2591.txt
 
 # Python
 __pycache__/
